@@ -42,7 +42,7 @@ pipeline {
             steps {
                 script {
                     withSonarQubeEnv('sonarqube') {
-                        sh "${ScannerHome}/bin/sonar-scanner -Dsonar.projectKey=web-app"
+                        sh "${ScannerHome}/bin/sonar-scanner -Dsonar.projectKey=web-app_2"
                     }
                 }
             }
