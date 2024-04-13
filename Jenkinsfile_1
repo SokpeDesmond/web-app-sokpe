@@ -1,0 +1,80 @@
+  COLOR_MAP = [
+    'SUCCESS': 'good',
+    'FAILURE': 'danger',
+]
+
+pipeline {
+    agent any
+
+    tools {
+        maven "maven3.9.6"
+    }
+
+    stages {
+        stage('Git Clone') {
+            steps {
+                git branch: 'main', url: 'https://github.com/SokpeDesmond/web-app-sokpe.git'
+            }
+        }
+
+        stage('Build with Maven') {
+            steps {
+                sh "mvn clean" 
+            }
+        }
+
+        stage('Unit test with maven') {
+            steps {
+                sh "mvn test"
+            }
+        }
+
+        stage('package with maven') {
+            steps {
+                sh "mvn package"
+            }
+        }
+
+        stage('SonarQube Analysis') {
+            environment {
+                ScannerHome = tool 'sonar5.0'
+            }
+            steps {
+                script {
+                    withSonarQubeEnv('sonarqube') {
+                        sh "${ScannerHome}/bin/sonar-scanner -Dsonar.projectKey=web-app"
+                    }
+                }
+            }
+        }
+
+        stage("Quality Gate") {
+            steps {
+                timeout(time: 1, unit: 'HOURS') {
+                waitForQualityGate abortPipeline: true
+              }
+            }
+        }
+
+        stage('Deploy to nexus') {
+            steps {
+               nexusArtifactUploader artifacts: [[artifactId: 'maven-web-application', classifier: '', file: '/var/lib/jenkins/workspace/Pipeline-jenkins_file/target/web-app.war', type: 'war']], credentialsId: 'nexus-credentials', groupId: 'com.mt', nexusUrl: '16.170.229.196:8081/', nexusVersion: 'nexus3', protocol: 'http', repository: 'webapp-snapshot', version: '3.1.2-SNAPSHOT'
+            }
+        } 
+
+        stage('Deploy to tomcat') {
+            steps {
+                deploy adapters: [tomcat9(credentialsId: 'tomcat-credentials', path: '', url: 'http://13.50.110.217:8080/')], contextPath: null, war: 'target/*.war'
+            }
+        }
+    }
+
+    post {
+        success {
+            slackSend channel: 'practice', color: 'good', message: "Build successful: ${currentBuild.fullDisplayName}"
+        }
+        failure {
+            slackSend channel: 'practice', color: 'danger', message: "Build failed: ${currentBuild.fullDisplayName}"
+        }
+    }
+}
